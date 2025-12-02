@@ -1,0 +1,225 @@
+@startuml
+' Project UML detailed overview for WorkNote ComposeApp (Auth module focus)
+' Generated: detailed class and component diagram including DTOs, usecase methods and VM fields
+
+skinparam componentStyle rectangle
+skinparam classAttributeIconSize 0
+
+'package "UI / Compose" {
+'  component AuthScreen <<Composable>>
+'  component AuthRoot <<Composable>>
+'  component AuthHeader <<Composable>>
+'  component EmailField <<Composable>>
+'  component PasswordField <<Composable>>
+'  component AuthButtons <<Composable>>
+'}
+
+package "Presentation {
+  class AuthViewModel {
+    - logger: Logger
+    - _state: MutableStateFlow<AuthState>
+    - _eventFlow: MutableSharedFlow<AuthEffect>
+    - loginJob: Job?
+    - doLoginUseCase: DoLoginUseCase
+    - saveAuthDataUseCase: SaveAuthDataUseCase
+    - logoutUseCase: LogoutUseCase
+    + state: StateFlow<AuthState>
+    + eventFlow: SharedFlow<AuthEffect>
+    + onEvent(event: AuthEvent)
+    + doLogin(): Unit
+    + logout(): Unit
+    + validateInputs(state: AuthState): String?
+  }
+
+  class AuthContract <<Data>> {
+    + AuthState
+    + AuthEvent
+    + AuthEffect
+  }
+}
+
+package "Domain / UseCases" {
+  interface DoLoginUseCase {
+    + invoke(email: String, password: String): Result<AuthResponse>
+  }
+  class DoLoginUseCaseImpl {
+    - repository: AuthRemoteRepository
+    + invoke(email: String, password: String): Result<AuthResponse>
+  }
+
+  interface SaveAuthDataUseCase {
+    + invoke(authData: AuthDataModel): Result<Boolean>
+  }
+  class SaveAuthDataUseCaseImpl {
+    - storageRepository: AuthStorageRepository
+    + invoke(authData: AuthDataModel): Result<Boolean>
+  }
+
+  interface LogoutUseCase {
+    + invoke(): Result<Boolean>
+  }
+  class LogoutUseCaseImpl {
+    - storageRepository: AuthStorageRepository
+    - logger: Logger
+    + invoke(): Result<Boolean>
+  }
+}
+
+package "Data / Repositories" {
+  interface AuthRemoteRepository {
+    + login(request: AuthRequestDto): Result<AuthResponseDto>
+  }
+  class AuthRemoteRepositoryImpl {
+    - apiClient: WorkNoteAuthApi
+    - logger: Logger
+    + login(request: AuthRequestDto): Result<AuthResponseDto>
+  }
+
+  interface AuthStorageRepository {
+    + saveCredentials(credentials: CredentialsModel): Result<Boolean>
+    + saveToken(token: String): Result<Boolean>
+    + saveYandexApiKey(apiKey: String): Result<Boolean>
+    + clear(): Result<Boolean>
+  }
+  class AuthStorageRepositoryImpl {
+    - authStorage: AuthStorage
+    - logger: Logger
+    + saveCredentials(credentials: CredentialsModel): Result<Boolean>
+    + saveToken(token: String): Result<Boolean>
+    + saveYandexApiKey(apiKey: String): Result<Boolean>
+    + clear(): Result<Boolean>
+  }
+}
+
+package "DataSource / Network & Storage" {
+  class WorkNoteAuthApi <<KtorClient>> {
+    + login(dto: AuthRequestDto): AuthResponseDto
+  }
+  class AuthStorage <<KeyValue>> {
+    + saveUserLogin(login: String): Unit
+    + saveUserPassword(password: String): Unit
+    + saveToken(token: String): Unit
+    + saveYandexApiKey(apiKey: String): Unit
+    + clear(): Unit
+  }
+}
+
+package "DTOs / network" {
+  class AuthRequestDto {
+    + email: String
+    + password: String
+    + app: String
+    + expired: Boolean
+  }
+  class AuthResponseDto {
+    + success: Boolean
+    + message: String
+    + data: AuthResponseDataDto
+  }
+  class AuthResponseDataDto {
+    + token: String
+    + yandex_api_key: String
+  }
+}
+
+package "Mappers" {
+  class AuthMapper {
+    + toDomain(dto: AuthResponseDto): AuthResponse
+    + requestFrom(email: String, password: String): AuthRequestDto
+  }
+}
+
+package "Models / Domain" {
+  class AuthDataModel {
+    + token: String
+    + yandexApiKey: String
+    + credentials: CredentialsModel
+  }
+  class AuthResponse {
+    + success: Boolean
+    + message: String
+    + data: AuthResponseData
+  }
+  class AuthResponseData {
+    + token: String
+    + yandexApiKey: String
+  }
+  class CredentialsModel {
+    + login: String
+    + password: String
+  }
+}
+
+'package "DI / Utils" {
+'  component KoinModules <<Module>>
+'  component IconsProvider <<expect/actual>>
+'  component ObserveAsEvents <<Composable helper>>
+'}
+
+' Relations (detailed)
+AuthScreen ..> AuthViewModel : interacts via onEvent()
+AuthRoot ..> AuthViewModel : observes state/effects
+AuthHeader ..|> AuthScreen
+EmailField ..|> AuthScreen
+PasswordField ..|> AuthScreen
+AuthButtons ..|> AuthScreen
+
+AuthViewModel --> "Uses" DoLoginUseCase : doLoginUseCase
+AuthViewModel --> "Uses" SaveAuthDataUseCase : saveAuthDataUseCase
+AuthViewModel --> "Uses" LogoutUseCase : logoutUseCase
+
+DoLoginUseCaseImpl ..|> DoLoginUseCase
+DoLoginUseCaseImpl --> AuthRemoteRepositoryImpl : calls repository
+DoLoginUseCaseImpl --> AuthMapper : uses request/response mapping
+
+SaveAuthDataUseCaseImpl ..|> SaveAuthDataUseCase
+SaveAuthDataUseCaseImpl --> AuthStorageRepository : persists auth data
+
+LogoutUseCaseImpl ..|> LogoutUseCase
+LogoutUseCaseImpl --> AuthStorageRepository : clears storage
+
+AuthRemoteRepositoryImpl ..|> AuthRemoteRepository
+AuthRemoteRepositoryImpl --> WorkNoteAuthApi : calls.login(dto)
+AuthRemoteRepositoryImpl --> AuthMapper : maps dto -> domain
+AuthRemoteRepositoryImpl --> Logger : logs
+
+AuthStorageRepositoryImpl ..|> AuthStorageRepository
+AuthStorageRepositoryImpl --> AuthStorage : persist and clear
+AuthStorageRepositoryImpl --> Logger : logs
+
+WorkNoteAuthApi --> AuthResponseDto : returns
+AuthMapper --> AuthResponse : converts
+
+KoinModules --> AuthViewModel : provides (factory/single)
+KoinModules --> DoLoginUseCaseImpl
+KoinModules --> AuthRemoteRepositoryImpl
+KoinModules --> AuthStorageRepositoryImpl
+KoinModules --> SaveAuthDataUseCaseImpl
+KoinModules --> LogoutUseCaseImpl
+
+AuthViewModel --> AuthContract : reads AuthState / emits AuthEffect
+AuthScreen ..> AuthContract : renders AuthState / sends AuthEvent
+
+IconsProvider ..> EmailField : UserIcon/CloseIcon
+IconsProvider ..> PasswordField : PasswordIcon/VisibilityButton
+ObserveAsEvents ..> AuthNavGraph : collects effects
+
+Models --> Repositories : data mapping
+AuthResponse --> AuthDataModel : mapper
+CredentialsModel --> AuthDataModel
+
+' Notes
+note right of AuthViewModel
+  - validation: inputs checked before network call
+  - cancellation of previous login job to avoid races
+  - save auth data sequentially in same coroutine
+  - errors emitted via eventFlow as AuthEffect.ShowError
+end note
+
+note left of AuthRemoteRepositoryImpl
+  - runs network on IO dispatcher
+  - maps DTO -> domain via AuthMapper
+  - returns Result<AuthResponseDto>
+end note
+
+@enduml

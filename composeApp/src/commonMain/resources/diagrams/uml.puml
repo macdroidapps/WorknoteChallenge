@@ -1,0 +1,83 @@
+@startuml AuthModule
+
+package "presentation" {
+  class AuthScreen
+  class AuthViewModel {
+    -MutableStateFlow<AuthState> _state
+    -Channel<AuthEffect> _effects
+    +onEvent(AuthEvent)
+    +doLogin()
+    -handleLoginSuccess()
+    -handleLoginFailure()
+    -logout()
+  }
+
+  class AuthState {
+    email: String?
+    password: String?
+    isLoading: Boolean
+    isAuthenticated: Boolean
+  }
+
+  class AuthEvent
+  class AuthEffect
+}
+
+package "domain" {
+  class DoLoginUseCase {
+    +invoke(email, password): Result<AuthResponse>
+  }
+  class SaveAuthDataUseCase {
+    +invoke(authData: AuthDataModel): Result<Boolean>
+  }
+  class LogoutUseCase
+  interface AuthRemoteRepository {
+    +login(email, password): Result<AuthResponse>
+  }
+  interface AuthStorageRepository {
+    +saveCredentials()
+    +saveToken()
+    +saveYandexApiKey()
+  }
+}
+
+package "data" {
+  class AuthRemoteRepositoryImpl {
+    -apiClient: WorkNoteAuthApi
+    -logger: Logger
+    -ioDispatcher: CoroutineDispatcher
+    +login(...)
+  }
+  class WorkNoteAuthApi {
+    -client: HttpClient
+    +login(request: AuthRequestDto): AuthResponseDto
+  }
+}
+
+package "datasources" {
+  class DeviceIdProvider {
+    +getDeviceId(): String
+  }
+}
+
+AuthScreen --> AuthViewModel : uses
+AuthViewModel --> AuthState : state
+AuthViewModel --> AuthEvent : handles
+AuthViewModel --> AuthEffect : emits
+
+AuthViewModel --> DoLoginUseCase : calls
+AuthViewModel --> SaveAuthDataUseCase : calls
+AuthViewModel --> LogoutUseCase : calls
+AuthViewModel --> Logger : logs
+
+DoLoginUseCase --> AuthRemoteRepository : delegates
+SaveAuthDataUseCase --> AuthStorageRepository : delegates
+
+AuthRemoteRepositoryImpl ..|> AuthRemoteRepository
+AuthRemoteRepositoryImpl --> WorkNoteAuthApi : calls
+AuthRemoteRepositoryImpl --> Logger : logs
+
+WorkNoteAuthApi --> DeviceIdProvider : reads ID
+WorkNoteAuthApi --> HttpClient : composes
+
+@enduml
