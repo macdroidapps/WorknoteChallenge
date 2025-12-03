@@ -13,6 +13,9 @@ import ru.macdroid.worknote.features.s05_e01_chat.presentation.ChatViewModel
 import ru.macdroid.worknote.features.s05_e02_weather.di.loadKoinWeatherModules
 import ru.macdroid.worknote.features.s05_e02_weather.domain.usecases.SendWeatherMessageUseCase
 import ru.macdroid.worknote.features.s05_e02_weather.presentation.WeatherViewModel
+import ru.macdroid.worknote.features.s05_e03_talking.di.loadKoinTalkModules
+import ru.macdroid.worknote.features.s05_e03_talking.domain.usecases.SendTalkMessageUseCase
+import ru.macdroid.worknote.features.s05_e03_talking.presentation.TalkViewModel
 
 private val viewModelModule = module {
     factory {
@@ -24,6 +27,12 @@ private val viewModelModule = module {
     factory {
         WeatherViewModel(
             sendMessageUseCase = get<SendWeatherMessageUseCase>(),
+            logger = get<Logger>()
+        )
+    }
+    factory {
+        TalkViewModel(
+            sendMessageUseCase = get<SendTalkMessageUseCase>(),
             logger = get<Logger>()
         )
     }
@@ -47,7 +56,8 @@ fun initKoinIos() {
                     loadKoinRoomModules() +
                     loadKoinDeviceModules() +
                     loadKoinViewModelModules() +
-                    loadKoinWeatherModules()
+                    loadKoinWeatherModules() +
+                            loadKoinTalkModules()
         )
     }
 }

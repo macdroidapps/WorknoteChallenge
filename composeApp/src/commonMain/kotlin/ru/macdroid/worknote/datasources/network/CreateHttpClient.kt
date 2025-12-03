@@ -1,6 +1,7 @@
 package ru.macdroid.worknote.datasources.network
 
 import io.ktor.client.HttpClient
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.plugins.logging.LogLevel
@@ -25,6 +26,11 @@ fun createHttpClient(): HttpClient {
                     ignoreUnknownKeys = true
                 }
             )
+        }
+        install(HttpTimeout) {
+            requestTimeoutMillis = 120_000    // 2 минуты на весь запрос
+            connectTimeoutMillis = 30_000     // 30 секунд на подключение
+            socketTimeoutMillis = 120_000     // 2 минуты на ожидание данных
         }
         defaultRequest {
             header("x-api-key", CLAUDE_API_KEY)
