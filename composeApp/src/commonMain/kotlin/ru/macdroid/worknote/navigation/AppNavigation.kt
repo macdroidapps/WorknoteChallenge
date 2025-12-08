@@ -8,30 +8,16 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
 import ru.macdroid.worknote.navigation.graphModels.RootGraph
 import ru.macdroid.worknote.navigation.hosts.ChatHost
-import ru.macdroid.worknote.navigation.hosts.TalkHost
-import ru.macdroid.worknote.navigation.hosts.WeatherHost
 
 @Composable
 fun AppNavigationRoot() {
-    val backStack = remember { mutableStateListOf<RootGraph>(RootGraph.Talk) }
+    val backStack = remember { mutableStateListOf<RootGraph>(RootGraph.Chat) }
     NavDisplay(
         backStack = backStack,
         onBack = { backStack.removeLastOrNull() },
         entryProvider = entryProvider {
             entry<RootGraph.Chat> {
                 ChatHost(
-                    onLoginSuccess = {
-                        backStack.clear()
-                    }
-                )
-            }
-
-            entry<RootGraph.Weather> {
-                WeatherHost()
-            }
-
-            entry<RootGraph.Talk> {
-                TalkHost(
                     onLoginSuccess = {
                         backStack.clear()
                     }

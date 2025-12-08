@@ -11,9 +11,9 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
-import ru.macdroid.worknote.features.s05_e01_chat.domain.ChatEffect
-import ru.macdroid.worknote.features.s05_e01_chat.presentation.ChatRoot
-import ru.macdroid.worknote.features.s05_e01_chat.presentation.ChatViewModel
+import ru.macdroid.worknote.features.chat.domain.ChatEffect
+import ru.macdroid.worknote.features.chat.presentation.ChatRoot
+import ru.macdroid.worknote.features.chat.presentation.ChatViewModel
 import ru.macdroid.worknote.navigation.graphModels.ChatHost
 import ru.macdroid.worknote.utils.ObserveAsEvents
 

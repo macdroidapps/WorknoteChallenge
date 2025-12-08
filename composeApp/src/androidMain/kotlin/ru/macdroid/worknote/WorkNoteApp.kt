@@ -9,9 +9,7 @@ import ru.macdroid.worknote.datasources.di.loadKoinStorageModules
 import ru.macdroid.worknote.di.loadKoinDeviceModules
 import ru.macdroid.worknote.di.loadKoinLoggerModules
 import ru.macdroid.worknote.di.loadKoinViewModelModules
-import ru.macdroid.worknote.features.s05_e01_chat.di.loadKoinChatModules
-import ru.macdroid.worknote.features.s05_e02_weather.di.loadKoinWeatherModules
-import ru.macdroid.worknote.features.s05_e03_talking.di.loadKoinTalkModules
+import ru.macdroid.worknote.features.chat.di.loadKoinChatModules
 
 class WorkNoteApp : Application() {
     override fun onCreate() {
@@ -27,9 +25,7 @@ class WorkNoteApp : Application() {
                             loadKoinApiModules() +
                             loadKoinRoomModules() +
                             loadKoinViewModelModules() +
-                            loadKoinDeviceModules() +
-                            loadKoinWeatherModules() +
-                            loadKoinTalkModules()
+                            loadKoinDeviceModules()
             )
         }
     }

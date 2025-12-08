@@ -4,5 +4,5 @@ object AppConstants {
     const val MODEL_SONNET_4_5 = "claude-sonnet-4-5-20250929"
     const val MODEL_SONNET_4 = "claude-sonnet-4-20250514"
     const val MODEL_HAIKU = "claude-haiku-4-5-20251001"
-    const val CLAUDE_API_KEY = "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"
+    const val CLAUDE_API_KEY = "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"
 }

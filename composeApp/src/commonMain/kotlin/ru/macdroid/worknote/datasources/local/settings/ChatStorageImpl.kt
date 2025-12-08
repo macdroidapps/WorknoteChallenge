@@ -2,7 +2,7 @@ package ru.macdroid.worknote.datasources.local.settings
 
 import com.russhwolf.settings.Settings
 import com.russhwolf.settings.set
-import ru.macdroid.worknote.features.s05_e01_chat.domain.repositories.ChatStorage
+import ru.macdroid.worknote.features.chat.domain.repositories.ChatStorage
 
 class ChatStorageImpl(
     private val settings: Settings
