@@ -1,13 +1,16 @@
 package ru.macdroid.worknote.features.chat.presentation
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
@@ -16,14 +19,13 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Slider
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -40,11 +42,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import ru.macdroid.worknote.features.chat.domain.ChatEvent
 import ru.macdroid.worknote.features.chat.domain.ChatState
+import ru.macdroid.worknote.features.chat.domain.models.AiModel
 import ru.macdroid.worknote.features.chat.domain.models.MessageModel
-import ru.macdroid.worknote.utils.Icons
 
 @Composable
 fun ChatRoot(
@@ -120,12 +123,19 @@ fun ChatScreen(
             .fillMaxSize()
             .padding(paddingValues)
     ) {
-        ChatHeader(title = "Чат с Claude")
+        ChatHeader(title = "HuggingFace Chat")
 
-        TemperatureSlider(
-            temperature = state.temperature,
-            onTemperatureChange = { onEvent(ChatEvent.SetTemperature(it)) },
+        ModelSelector(
+            selectedModel = state.selectedModel,
+            onModelSelect = { onEvent(ChatEvent.SelectModel(it)) },
             onClearChat = { onEvent(ChatEvent.ClearChat) }
+        )
+
+        ResponseMetrics(
+            responseTimeMs = state.lastResponseTimeMs,
+            inputTokens = state.lastInputTokens,
+            outputTokens = state.lastOutputTokens,
+            totalTokens = state.lastTotalTokens
         )
 
         if (state.chatMessages.isEmpty()) {
@@ -141,6 +151,17 @@ fun ChatScreen(
             ) {
                 itemsIndexed(state.chatMessages) { _, message->
                     MessageBubble(message = message)
+                }
+
+                if (state.isLoading) {
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            CircularProgressIndicator()
+                        }
+                    }
                 }
             }
         }
@@ -165,9 +186,9 @@ fun ChatHeader(title: String) {
 }
 
 @Composable
-fun TemperatureSlider(
-    temperature: Float,
-    onTemperatureChange: (Float) -> Unit,
+fun ModelSelector(
+    selectedModel: AiModel,
+    onModelSelect: (AiModel) -> Unit,
     onClearChat: () -> Unit
 ) {
     Column(
@@ -181,7 +202,7 @@ fun TemperatureSlider(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Температура: ${(temperature * 10).toInt() / 10.0}",
+                text = "Выберите модель:",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface
             )
@@ -189,12 +210,110 @@ fun TemperatureSlider(
                 Text("Очистить чат")
             }
         }
-        Slider(
-            value = temperature,
-            onValueChange = onTemperatureChange,
-            valueRange = 0f..1.2f,
-            steps = 11,
-            modifier = Modifier.fillMaxWidth()
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            AiModel.entries.forEach { model ->
+                val isSelected = model == selectedModel
+                Button(
+                    onClick = { onModelSelect(model) },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isSelected)
+                            MaterialTheme.colorScheme.primary
+                        else
+                            MaterialTheme.colorScheme.surfaceVariant,
+                        contentColor = if (isSelected)
+                            MaterialTheme.colorScheme.onPrimary
+                        else
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = model.displayName,
+                        style = MaterialTheme.typography.labelSmall,
+                        textAlign = TextAlign.Center,
+                        maxLines = 2
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ResponseMetrics(
+    responseTimeMs: Long?,
+    inputTokens: Int?,
+    outputTokens: Int?,
+    totalTokens: Int?
+) {
+    if (responseTimeMs != null || totalTokens != null) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.secondaryContainer
+            )
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                if (responseTimeMs != null) {
+                    MetricItem(
+                        label = "⏱️ Время",
+                        value = "${responseTimeMs}ms"
+                    )
+                }
+                if (inputTokens != null) {
+                    MetricItem(
+                        label = "📥 Входные",
+                        value = "$inputTokens"
+                    )
+                }
+                if (outputTokens != null) {
+                    MetricItem(
+                        label = "📤 Выходные",
+                        value = "$outputTokens"
+                    )
+                }
+                if (totalTokens != null) {
+                    MetricItem(
+                        label = "📊 Всего",
+                        value = "$totalTokens"
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun MetricItem(
+    label: String,
+    value: String
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSecondaryContainer
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSecondaryContainer
         )
     }
 }
@@ -259,18 +378,17 @@ fun MessageBubble(message: MessageModel) {
                         MaterialTheme.colorScheme.onSecondaryContainer
                 )
                 if (message.role != "user") {
-                    IconButton(
-                        onClick = {
-                            clipboardManager.setText(AnnotatedString(message.content))
-                        },
-                        modifier = Modifier.align(Alignment.End)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ContentCopy,
-                            contentDescription = "Копировать",
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
-                    }
+                    Text(
+                        text = "📋 Копировать",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .align(Alignment.End)
+                            .clickable {
+                                clipboardManager.setText(AnnotatedString(message.content))
+                            }
+                            .padding(4.dp)
+                    )
                 }
             }
         }

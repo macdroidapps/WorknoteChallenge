@@ -16,23 +16,25 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.time.TimeSource
 import ru.macdroid.worknote.features.chat.domain.ChatEffect
 import ru.macdroid.worknote.features.chat.domain.ChatEvent
 import ru.macdroid.worknote.features.chat.domain.ChatState
-import ru.macdroid.worknote.features.chat.domain.models.ClaudeRequestModel
+import ru.macdroid.worknote.features.chat.domain.models.AiModel
 import ru.macdroid.worknote.features.chat.domain.models.MessageModel
-import ru.macdroid.worknote.features.chat.domain.usecases.SendMessageUseCase
-import ru.macdroid.worknote.utils.AppConstants
+import ru.macdroid.worknote.features.chat.data.api.HuggingFaceApi
+import ru.macdroid.worknote.features.chat.data.dto.HuggingFaceMessageDTO
+import ru.macdroid.worknote.features.chat.data.dto.HuggingFaceRequestDTO
 
 class ChatViewModel(
     private val logger: Logger,
-    private val sendMessageUseCase: SendMessageUseCase,
+    private val huggingFaceApi: HuggingFaceApi,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ChatState())
     val state = _state
         .onStart {
-            logger.d { "🚀 AuthViewModel started" }
+            logger.d { "🚀 ChatViewModel started" }
         }
         .stateIn(
             viewModelScope,
@@ -55,7 +57,7 @@ class ChatViewModel(
             is ChatEvent.SendMessageToChat -> sendMessageToChat(message = event.message)
             is ChatEvent.UpdateCurrentMessage -> updateCurrentMessage(event.message)
             is ChatEvent.SetUserName -> setUserName(name = event.name)
-            is ChatEvent.SetTemperature -> setTemperature(temperature = event.temperature)
+            is ChatEvent.SelectModel -> selectModel(model = event.model)
             is ChatEvent.ClearChat -> clearChat()
         }
     }
@@ -68,10 +70,10 @@ class ChatViewModel(
         }
     }
 
-    private fun setTemperature(temperature: Float) {
+    private fun selectModel(model: AiModel) {
         _state.update {
             it.copy(
-                temperature = temperature
+                selectedModel = model
             )
         }
     }
@@ -79,7 +81,11 @@ class ChatViewModel(
     private fun clearChat() {
         _state.update {
             it.copy(
-                chatMessages = emptyList()
+                chatMessages = emptyList(),
+                lastResponseTimeMs = null,
+                lastInputTokens = null,
+                lastOutputTokens = null,
+                lastTotalTokens = null
             )
         }
     }
@@ -103,7 +109,12 @@ class ChatViewModel(
         _state.update {
             it.copy(
                 chatMessages = _state.value.chatMessages + userMessage,
-                currentMessage = ""
+                currentMessage = "",
+                isLoading = true,
+                lastResponseTimeMs = null,
+                lastInputTokens = null,
+                lastOutputTokens = null,
+                lastTotalTokens = null
             )
         }
 
@@ -111,38 +122,53 @@ class ChatViewModel(
         loginJob = viewModelScope.launch(coroutineHandler) {
 
             try {
-                withContext(Dispatchers.IO) {
-                    val request = ClaudeRequestModel(
-                        model = AppConstants.MODEL_SONNET_4_5,
-                        maxTokens = 1024,
-                        messages = _state.value.chatMessages,
-                        temperature = _state.value.temperature
-                    )
-                    logger.d { "📤 Sending request: model=${request.model}, maxTokens=${request.maxTokens}, temperature=${request.temperature}, messages=${request.messages}" }
-                    sendMessageUseCase(message = request)
-                }.collect { res ->
-                    res.fold(
-                        onSuccess = { response ->
-                            val claudeMessage = MessageModel(
-                                role = response.role ?: "assistant",
-                                content = response.content?.first()?.text.orEmpty()
-                            )
-                            _state.update {
-                                it.copy(
-                                    chatMessages = _state.value.chatMessages + claudeMessage
-                                )
-                            }
-                        },
-                        onFailure = {
+                val timeSource = TimeSource.Monotonic
+                val startMark = timeSource.markNow()
 
-                        }
+                val result = withContext(Dispatchers.IO) {
+                    val model = _state.value.selectedModel
+                    val request = HuggingFaceRequestDTO(
+                        model = model.id,
+                        messages = _state.value.chatMessages.map {
+                            HuggingFaceMessageDTO(role = it.role, content = it.content)
+                        },
+                        maxTokens = 1024,
+                        stream = false
                     )
+                    logger.d { "📤 Sending request to HuggingFace: model=${model.id}" }
+                    huggingFaceApi.sendMessage(request)
                 }
 
+                val responseTimeMs = startMark.elapsedNow().inWholeMilliseconds
+
+                result.fold(
+                    onSuccess = { response ->
+                        val content = response.choices?.firstOrNull()?.message?.content ?: ""
+                        val assistantMessage = MessageModel(
+                            role = "assistant",
+                            content = content
+                        )
+                        _state.update {
+                            it.copy(
+                                chatMessages = _state.value.chatMessages + assistantMessage,
+                                isLoading = false,
+                                lastResponseTimeMs = responseTimeMs,
+                                lastInputTokens = response.usage?.promptTokens,
+                                lastOutputTokens = response.usage?.completionTokens,
+                                lastTotalTokens = response.usage?.totalTokens
+                            )
+                        }
+                    },
+                    onFailure = { error ->
+                        _state.update { it.copy(isLoading = false) }
+                        onEffect(ChatEffect.ShowError(error.message ?: "Ошибка запроса"))
+                    }
+                )
+
             } catch (e: Exception) {
-                logger.e(e) { "❌ ViewModel: uncaught login exception" }
-                onEffect(ChatEffect.ShowError(e.message ?: "Ошибка авторизации"))
-            } finally {
+                logger.e(e) { "❌ ViewModel: uncaught exception" }
+                _state.update { it.copy(isLoading = false) }
+                onEffect(ChatEffect.ShowError(e.message ?: "Ошибка"))
             }
         }
     }

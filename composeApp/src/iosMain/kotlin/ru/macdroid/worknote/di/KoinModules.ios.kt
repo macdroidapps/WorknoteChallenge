@@ -8,13 +8,13 @@ import ru.macdroid.worknote.datasources.di.loadKoinApiModules
 import ru.macdroid.worknote.datasources.di.loadKoinRoomModules
 import ru.macdroid.worknote.datasources.di.loadKoinStorageModules
 import ru.macdroid.worknote.features.chat.di.loadKoinChatModules
-import ru.macdroid.worknote.features.chat.domain.usecases.SendMessageUseCase
+import ru.macdroid.worknote.features.chat.data.api.HuggingFaceApi
 import ru.macdroid.worknote.features.chat.presentation.ChatViewModel
 
 private val viewModelModule = module {
     factory {
         ChatViewModel(
-            sendMessageUseCase = get<SendMessageUseCase>(),
+            huggingFaceApi = get<HuggingFaceApi>(),
             logger = get<Logger>()
         )
     }
