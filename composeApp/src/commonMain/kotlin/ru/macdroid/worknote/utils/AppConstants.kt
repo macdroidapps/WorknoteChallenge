@@ -11,5 +11,5 @@ object AppConstants {
     const val HF_MODEL_QWEN = "Qwen/Qwen3-235B-A22B"
     const val HF_MODEL_LLAMA = "dicta-il/DictaLM-3.0-24B-Thinking:publicai"
 
-    const val HUGGING_FACE_API_KEY = "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"
+    const val HUGGING_FACE_API_KEY = ""
 }
