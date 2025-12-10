@@ -22,6 +22,9 @@ import ru.macdroid.worknote.features.chat.domain.ChatEvent
 import ru.macdroid.worknote.features.chat.domain.ChatState
 import ru.macdroid.worknote.features.chat.domain.models.AiModel
 import ru.macdroid.worknote.features.chat.domain.models.MessageModel
+import ru.macdroid.worknote.features.chat.domain.models.ModelTokenLimits
+import ru.macdroid.worknote.features.chat.domain.utils.TokenAnalysis
+import ru.macdroid.worknote.features.chat.domain.utils.TokenEstimator
 import ru.macdroid.worknote.features.chat.data.api.HuggingFaceApi
 import ru.macdroid.worknote.features.chat.data.dto.HuggingFaceMessageDTO
 import ru.macdroid.worknote.features.chat.data.dto.HuggingFaceRequestDTO
@@ -59,6 +62,8 @@ class ChatViewModel(
             is ChatEvent.SetUserName -> setUserName(name = event.name)
             is ChatEvent.SelectModel -> selectModel(model = event.model)
             is ChatEvent.ClearChat -> clearChat()
+            is ChatEvent.ToggleTokenTestPanel -> toggleTokenTestPanel()
+            is ChatEvent.SendTestMessage -> sendMessageToChat(message = event.testCaseMessage)
         }
     }
 
@@ -85,16 +90,49 @@ class ChatViewModel(
                 lastResponseTimeMs = null,
                 lastInputTokens = null,
                 lastOutputTokens = null,
-                lastTotalTokens = null
+                lastTotalTokens = null,
+                lastEstimatedCost = null,
+                currentTokenAnalysis = null,
+                totalSessionInputTokens = 0,
+                totalSessionOutputTokens = 0,
+                totalSessionCost = 0.0
             )
         }
     }
 
+    private fun toggleTokenTestPanel() {
+        _state.update {
+            it.copy(showTokenTestPanel = !it.showTokenTestPanel)
+        }
+    }
+
     private fun updateCurrentMessage(message: String) {
+        // Анализируем токены при вводе
+        val limits = ModelTokenLimits.getForModel(_state.value.selectedModel)
+        val conversationHistory = _state.value.chatMessages.map { it.content }
+
+        val analysis = TokenAnalysis.analyze(
+            inputText = message,
+            conversationHistory = conversationHistory,
+            maxInputTokens = limits.maxInputTokens,
+            maxOutputTokens = limits.maxOutputTokens,
+            maxTotalTokens = limits.maxTotalTokens,
+            costPerInputToken = limits.costPerInputToken,
+            costPerOutputToken = limits.costPerOutputToken
+        )
+
         _state.update {
             it.copy(
-                currentMessage = message
+                currentMessage = message,
+                currentTokenAnalysis = analysis
             )
+        }
+
+        // Показываем предупреждение если есть
+        if (analysis.warning != null) {
+            viewModelScope.launch {
+                _effects.send(ChatEffect.ShowTokenWarning(analysis.warning))
+            }
         }
     }
 
@@ -132,7 +170,7 @@ class ChatViewModel(
                         messages = _state.value.chatMessages.map {
                             HuggingFaceMessageDTO(role = it.role, content = it.content)
                         },
-                        maxTokens = 1024,
+                        maxTokens = 1000,
                         stream = false
                     )
                     logger.d { "📤 Sending request to HuggingFace: model=${model.id}" }
@@ -148,19 +186,41 @@ class ChatViewModel(
                             role = "assistant",
                             content = content
                         )
+
+                        // Рассчитываем стоимость
+                        val inputTokens = response.usage?.promptTokens ?: 0
+                        val outputTokens = response.usage?.completionTokens ?: 0
+                        val limits = ModelTokenLimits.getForModel(_state.value.selectedModel)
+                        val cost = TokenEstimator.estimateCost(
+                            inputTokens = inputTokens,
+                            outputTokens = outputTokens,
+                            costPerInputToken = limits.costPerInputToken,
+                            costPerOutputToken = limits.costPerOutputToken
+                        )
+
                         _state.update {
                             it.copy(
                                 chatMessages = _state.value.chatMessages + assistantMessage,
                                 isLoading = false,
                                 lastResponseTimeMs = responseTimeMs,
-                                lastInputTokens = response.usage?.promptTokens,
-                                lastOutputTokens = response.usage?.completionTokens,
-                                lastTotalTokens = response.usage?.totalTokens
+                                lastInputTokens = inputTokens,
+                                lastOutputTokens = outputTokens,
+                                lastTotalTokens = response.usage?.totalTokens,
+                                lastEstimatedCost = cost,
+                                currentTokenAnalysis = null,
+                                totalSessionInputTokens = it.totalSessionInputTokens + inputTokens,
+                                totalSessionOutputTokens = it.totalSessionOutputTokens + outputTokens,
+                                totalSessionCost = it.totalSessionCost + cost
                             )
+                        }
+
+                        logger.d {
+                            "💰 Request cost: ${TokenEstimator.formatCost(cost)} " +
+                            "(Input: $inputTokens, Output: $outputTokens)"
                         }
                     },
                     onFailure = { error ->
-                        _state.update { it.copy(isLoading = false) }
+                        _state.update { it.copy(isLoading = false, currentTokenAnalysis = null) }
                         onEffect(ChatEffect.ShowError(error.message ?: "Ошибка запроса"))
                     }
                 )

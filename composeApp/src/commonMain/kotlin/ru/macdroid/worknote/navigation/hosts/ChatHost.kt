@@ -42,6 +42,8 @@ fun ChatHost(onLoginSuccess: () -> Unit) {
                                 snackbarHostState.showSnackbar(effect.message)
                             }
                         }
+
+                        else -> {}
                     }
                 }
                 ChatRoot(

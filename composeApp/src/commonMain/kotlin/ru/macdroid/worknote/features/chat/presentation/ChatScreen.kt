@@ -48,6 +48,11 @@ import ru.macdroid.worknote.features.chat.domain.ChatEvent
 import ru.macdroid.worknote.features.chat.domain.ChatState
 import ru.macdroid.worknote.features.chat.domain.models.AiModel
 import ru.macdroid.worknote.features.chat.domain.models.MessageModel
+import ru.macdroid.worknote.features.chat.domain.models.ModelTokenLimits
+import ru.macdroid.worknote.features.chat.domain.utils.format
+import ru.macdroid.worknote.features.chat.presentation.components.TokenTestPanel
+import ru.macdroid.worknote.features.chat.presentation.components.SessionStatisticsCard
+import ru.macdroid.worknote.features.chat.presentation.components.ModelBehaviorIndicator
 
 @Composable
 fun ChatRoot(
@@ -123,20 +128,47 @@ fun ChatScreen(
             .fillMaxSize()
             .padding(paddingValues)
     ) {
-        ChatHeader(title = "HuggingFace Chat")
 
         ModelSelector(
             selectedModel = state.selectedModel,
             onModelSelect = { onEvent(ChatEvent.SelectModel(it)) },
-            onClearChat = { onEvent(ChatEvent.ClearChat) }
+            onClearChat = { onEvent(ChatEvent.ClearChat) },
+            onToggleTestPanel = { onEvent(ChatEvent.ToggleTokenTestPanel) }
         )
 
+        // Панель тестирования токенов
+        val limits = ModelTokenLimits.getForModel(state.selectedModel)
+        TokenTestPanel(
+            isVisible = state.showTokenTestPanel,
+            currentAnalysis = state.currentTokenAnalysis,
+            limits = limits,
+            onTestCaseSelected = { testMessage ->
+                onEvent(ChatEvent.SendTestMessage(testMessage))
+            },
+            onClose = { onEvent(ChatEvent.ToggleTokenTestPanel) }
+        )
+
+        // 🔄 ПРОГНОЗ ПОВЕДЕНИЯ МОДЕЛИ - показывает КАК изменится поведение
+        ModelBehaviorIndicator(
+            analysis = state.currentTokenAnalysis
+        )
+
+        // Метрики последнего ответа
         ResponseMetrics(
             responseTimeMs = state.lastResponseTimeMs,
             inputTokens = state.lastInputTokens,
             outputTokens = state.lastOutputTokens,
-            totalTokens = state.lastTotalTokens
+            totalTokens = state.lastTotalTokens,
+            estimatedCost = state.lastEstimatedCost
         )
+
+        // Статистика сессии
+//        SessionStatisticsCard(
+//            totalInputTokens = state.totalSessionInputTokens,
+//            totalOutputTokens = state.totalSessionOutputTokens,
+//            totalCost = state.totalSessionCost,
+//            messageCount = state.chatMessages.count { it.role == "user" }
+//        )
 
         if (state.chatMessages.isEmpty()) {
             EmptyStateView()
@@ -189,7 +221,8 @@ fun ChatHeader(title: String) {
 fun ModelSelector(
     selectedModel: AiModel,
     onModelSelect: (AiModel) -> Unit,
-    onClearChat: () -> Unit
+    onClearChat: () -> Unit,
+    onToggleTestPanel: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -206,8 +239,20 @@ fun ModelSelector(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface
             )
-            Button(onClick = onClearChat) {
-                Text("Очистить чат")
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(onClick = onClearChat) {
+                    Text("Очистить чат")
+                }
+                Button(
+                    onClick = onToggleTestPanel,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.secondary
+                    )
+                ) {
+                    Text("Пресеты")
+                }
             }
         }
 
@@ -251,7 +296,8 @@ fun ResponseMetrics(
     responseTimeMs: Long?,
     inputTokens: Int?,
     outputTokens: Int?,
-    totalTokens: Int?
+    totalTokens: Int?,
+    estimatedCost: Double?
 ) {
     if (responseTimeMs != null || totalTokens != null) {
         Card(
@@ -290,6 +336,12 @@ fun ResponseMetrics(
                     MetricItem(
                         label = "📊 Всего",
                         value = "$totalTokens"
+                    )
+                }
+                if (estimatedCost != null) {
+                    MetricItem(
+                        label = "💰 Стоимость",
+                        value = "%.4f¢".format(estimatedCost)
                     )
                 }
             }
@@ -333,7 +385,7 @@ fun EmptyStateView() {
                 style = MaterialTheme.typography.displayLarge
             )
             Text(
-                text = "Начните разговор с Claude",
+                text = "Начните разговор с Нейросетью",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
