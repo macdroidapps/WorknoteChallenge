@@ -53,6 +53,7 @@ import ru.macdroid.worknote.features.chat.domain.utils.format
 import ru.macdroid.worknote.features.chat.presentation.components.TokenTestPanel
 import ru.macdroid.worknote.features.chat.presentation.components.SessionStatisticsCard
 import ru.macdroid.worknote.features.chat.presentation.components.ModelBehaviorIndicator
+import ru.macdroid.worknote.features.chat.presentation.components.CompressionStatsCard
 
 @Composable
 fun ChatRoot(
@@ -132,21 +133,20 @@ fun ChatScreen(
         ModelSelector(
             selectedModel = state.selectedModel,
             onModelSelect = { onEvent(ChatEvent.SelectModel(it)) },
-            onClearChat = { onEvent(ChatEvent.ClearChat) },
-            onToggleTestPanel = { onEvent(ChatEvent.ToggleTokenTestPanel) }
+            onClearChat = { onEvent(ChatEvent.ClearChat) }
         )
 
-        // Панель тестирования токенов
-        val limits = ModelTokenLimits.getForModel(state.selectedModel)
-        TokenTestPanel(
-            isVisible = state.showTokenTestPanel,
-            currentAnalysis = state.currentTokenAnalysis,
-            limits = limits,
-            onTestCaseSelected = { testMessage ->
-                onEvent(ChatEvent.SendTestMessage(testMessage))
-            },
-            onClose = { onEvent(ChatEvent.ToggleTokenTestPanel) }
-        )
+//        // Панель тестирования токенов
+//        val limits = ModelTokenLimits.getForModel(state.selectedModel)
+//        TokenTestPanel(
+//            isVisible = state.showTokenTestPanel,
+//            currentAnalysis = state.currentTokenAnalysis,
+//            limits = limits,
+//            onTestCaseSelected = { testMessage ->
+//                onEvent(ChatEvent.SendTestMessage(testMessage))
+//            },
+//            onClose = { onEvent(ChatEvent.ToggleTokenTestPanel) }
+//        )
 
         // 🔄 ПРОГНОЗ ПОВЕДЕНИЯ МОДЕЛИ - показывает КАК изменится поведение
         ModelBehaviorIndicator(
@@ -161,6 +161,11 @@ fun ChatScreen(
             totalTokens = state.lastTotalTokens,
             estimatedCost = state.lastEstimatedCost
         )
+
+        // Статистика сжатия диалогов
+        state.compressionStats?.let { stats ->
+            CompressionStatsCard(stats = stats)
+        }
 
         // Статистика сессии
 //        SessionStatisticsCard(
@@ -221,8 +226,7 @@ fun ChatHeader(title: String) {
 fun ModelSelector(
     selectedModel: AiModel,
     onModelSelect: (AiModel) -> Unit,
-    onClearChat: () -> Unit,
-    onToggleTestPanel: () -> Unit
+    onClearChat: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -239,20 +243,8 @@ fun ModelSelector(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface
             )
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Button(onClick = onClearChat) {
-                    Text("Очистить чат")
-                }
-                Button(
-                    onClick = onToggleTestPanel,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.secondary
-                    )
-                ) {
-                    Text("Пресеты")
-                }
+            Button(onClick = onClearChat) {
+                Text("Очистить чат")
             }
         }
 

@@ -234,9 +234,9 @@ data class ModelTokenLimits(
         fun getForModel(model: AiModel): ModelTokenLimits = when (model) {
             AiModel.DEEPSEEK -> ModelTokenLimits(
                 model = model,
-                maxInputTokens = 32_000,
-                maxOutputTokens = 8_000,
-                maxTotalTokens = 40_000,
+                maxInputTokens = 1000,
+                maxOutputTokens = 1000,
+                maxTotalTokens = 2000,
                 costPerInputToken = 0.00015,
                 costPerOutputToken = 0.0006
             )

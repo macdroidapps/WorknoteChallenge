@@ -1,6 +1,7 @@
 package ru.macdroid.worknote.features.chat.domain
 
 import ru.macdroid.worknote.features.chat.domain.models.AiModel
+import ru.macdroid.worknote.features.chat.domain.models.CompressionStats
 import ru.macdroid.worknote.features.chat.domain.models.MessageModel
 import ru.macdroid.worknote.features.chat.domain.utils.TokenAnalysis
 
@@ -20,7 +21,8 @@ data class ChatState(
     val currentTokenAnalysis: TokenAnalysis? = null,
     val totalSessionInputTokens: Int = 0,
     val totalSessionOutputTokens: Int = 0,
-    val totalSessionCost: Double = 0.0
+    val totalSessionCost: Double = 0.0,
+    val compressionStats: CompressionStats? = null
 )
 
 sealed class ChatEvent {

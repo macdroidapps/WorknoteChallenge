@@ -30,7 +30,7 @@ import ru.macdroid.worknote.features.chat.domain.utils.TokenAnalysis
 fun ModelBehaviorIndicator(
     analysis: TokenAnalysis?
 ) {
-    AnimatedVisibility(visible = analysis != null) {
+    AnimatedVisibility(visible = true) {
         analysis?.let {
             Card(
                 modifier = Modifier
